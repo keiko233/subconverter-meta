@@ -79,7 +79,7 @@ void hysteriaConstruct(Proxy &node, const std::string &group, const std::string 
     node.FakeType = type;
 }
 
-void vlessConstruct(Proxy &node, const std::string &group, const std::string &remarks, const std::string &add, const std::string &port, const std::string &type, const std::string &id, const std::string &aid, const std::string &net, const std::string &cipher, const std::string &flow, const std::string &mode, const std::string &path, const std::string &host, const std::string &edge, const std::string &tls,const std::string &pkd ,const std::string &sid ,tribool udp, tribool tfo, tribool scv, tribool tls13)
+void vlessConstruct(Proxy &node, const std::string &group, const std::string &remarks, const std::string &add, const std::string &port, const std::string &type, const std::string &id, const std::string &aid, const std::string &net, const std::string &cipher, const std::string &flow, const std::string &mode, const std::string &path, const std::string &host, const std::string &edge, const std::string &tls,const std::string &pbk, const std::string &sid, const std::string &fp ,tribool udp, tribool tfo, tribool scv, tribool tls13)
 {
     commonConstruct(node, ProxyType::VLESS, group, remarks, add, port, udp, tfo, scv, tls13);
     node.UserId = id.empty() ? "00000000-0000-0000-0000-000000000000" : id;
@@ -89,9 +89,10 @@ void vlessConstruct(Proxy &node, const std::string &group, const std::string &re
     node.Edge = edge;
     node.Flow = flow;
     node.FakeType = type;
-    node.TLSSecure = tls == "tls" || tls == "xtls";
-    node.PublicKey = pkd;
+    node.TLSSecure = tls == "tls" || tls == "xtls" || tls == "reality";
+    node.PublicKey = pbk;
     node.ShortId = sid;
+    node.Fingerprint = fp;
 
     switch(hash_(net))
     {
@@ -1027,7 +1028,8 @@ void explodeClash(Node yamlnode, std::vector<Proxy> &nodes)
 {
     std::string proxytype, ps, server, port, cipher, group, password; //common
     std::string type = "none", id, aid = "0", net = "tcp", path, host, edge, tls, sni, alpn; //vmess
-    std::string plugin, pluginopts, pluginopts_mode, pluginopts_host, pluginopts_mux; //ss
+    std::string fp="chrome",pbk,sid; //vless
+    std::string plugin, pluginopts, pluginopts_mode, pluginopts_host, pluginopts_mux, pluginopts_version, pluginopts_password; //ss
     std::string protocol, protoparam, obfs, obfsparam; //ssr
     std::string flow, mode; //trojan
     std::string user; //socks
@@ -1093,6 +1095,58 @@ void explodeClash(Node yamlnode, std::vector<Proxy> &nodes)
 
             vmessConstruct(node, group, ps, server, port, "", id, aid, net, cipher, path, host, edge, tls, sni, alpn, udp, tfo, scv);
             break;
+        case "vless"_hash:
+            group = XRAY_DEFAULT_GROUP;
+
+            singleproxy["uuid"] >>= id;
+            singleproxy["alterId"] >>= aid;
+            net = singleproxy["network"].IsDefined() ? safe_as<std::string>(singleproxy["network"]) : "tcp";
+            sni = singleproxy["sni"].IsDefined() ? safe_as<std::string>(singleproxy["sni"]) : safe_as<std::string>(singleproxy["servername"]) ;
+            switch(hash_(net))
+            {
+            case "http"_hash:
+                singleproxy["http-opts"]["path"][0] >>= path;
+                singleproxy["http-opts"]["headers"]["Host"][0] >>= host;
+                edge.clear();
+                break;
+            case "ws"_hash:
+                if(singleproxy["ws-opts"].IsDefined())
+                {
+                    path = singleproxy["ws-opts"]["path"].IsDefined() ? safe_as<std::string>(singleproxy["ws-opts"]["path"]) : "/";
+                    singleproxy["ws-opts"]["headers"]["Host"] >>= host;
+                    singleproxy["ws-opts"]["headers"]["Edge"] >>= edge;
+                }
+                else
+                {
+                    path = singleproxy["ws-path"].IsDefined() ? safe_as<std::string>(singleproxy["ws-path"]) : "/";
+                    singleproxy["ws-headers"]["Host"] >>= host;
+                    singleproxy["ws-headers"]["Edge"] >>= edge;
+                }
+                break;
+            case "h2"_hash:
+                singleproxy["h2-opts"]["path"] >>= path;
+                singleproxy["h2-opts"]["host"][0] >>= host;
+                edge.clear();
+                break;
+            case "grpc"_hash:
+                singleproxy["servername"] >>= host;
+                singleproxy["grpc-opts"]["grpc-service-name"] >>= path;
+                edge.clear();
+                break;
+            }
+
+            tls = safe_as<std::string>(singleproxy["tls"]) == "true" ? "tls" : "";
+            if(singleproxy["reality-opts"].IsDefined())
+            {
+                host = singleproxy["sni"].IsDefined() ? safe_as<std::string>(singleproxy["sni"]) : safe_as<std::string>(singleproxy["servername"]) ;
+                printf("host:%s",host.c_str());
+                singleproxy["reality-opts"]["public-key"]>>=pbk;
+                singleproxy["reality-opts"]["short-id"]>>=sid;
+            }
+            singleproxy["flow"]>>=flow;
+
+            vlessConstruct(node, XRAY_DEFAULT_GROUP, ps, server, port, type, id, aid, net, "auto", flow, mode, path, host, "", tls, pbk, sid, fp);
+            break;        
         case "ss"_hash:
             group = SS_DEFAULT_GROUP;
 
@@ -1119,6 +1173,15 @@ void explodeClash(Node yamlnode, std::vector<Proxy> &nodes)
                         tls = safe_as<bool>(singleproxy["plugin-opts"]["tls"]) ? "tls;" : "";
                         singleproxy["plugin-opts"]["path"] >>= path;
                         pluginopts_mux = safe_as<bool>(singleproxy["plugin-opts"]["mux"]) ? "mux=4;" : "";
+                    }
+                    break;
+                case "shadow-tls"_hash:
+                    plugin = "shadow-tls";
+                    if (singleproxy["plugin-opts"].IsDefined())
+                    {
+                        singleproxy["plugin-opts"]["host"] >>= pluginopts_host;
+                        singleproxy["plugin-opts"]["password"] >>= pluginopts_password;
+                        singleproxy["plugin-opts"]["version"] >>= pluginopts_version;
                     }
                     break;
                 default:
@@ -1149,6 +1212,14 @@ void explodeClash(Node yamlnode, std::vector<Proxy> &nodes)
                     pluginopts += "path=" + path + ";";
                 if(!pluginopts_mux.empty())
                     pluginopts += "mux=" + pluginopts_mux + ";";
+                break;
+            case "shadow-tls"_hash:
+                if (!pluginopts_host.empty())
+                    pluginopts += "host=" + pluginopts_host + ";";
+                if (!pluginopts_password.empty())
+                    pluginopts += "password=" + pluginopts_password + ";";
+                if (!pluginopts_version.empty())
+                    pluginopts += "version=" + pluginopts_version + ";";
                 break;
             }
 
@@ -1320,7 +1391,7 @@ void explodeStdHysteria(std::string hysteria, Proxy &node)
 
 void explodeStdVless(std::string vless, Proxy &node)
 {
-    std::string add, port, type, id, aid, net, flow, pbk,sid,mode, path, host, tls, remarks;
+    std::string add, port, type, id, aid, net, flow, pbk, sid, fp, mode, path, host, tls, remarks;
     std::string addition;
     vless = vless.substr(8);
     string_size pos;
@@ -1340,6 +1411,7 @@ void explodeStdVless(std::string vless, Proxy &node)
     flow = getUrlArg(addition,"flow");
     pbk = getUrlArg(addition,"pbk");
     sid = getUrlArg(addition,"sid");
+    fp = getUrlArg(addition,"fp");
 
     switch(hash_(net))
     {
@@ -1367,7 +1439,7 @@ void explodeStdVless(std::string vless, Proxy &node)
     if(remarks.empty())
         remarks = add + ":" + port;
 
-    vlessConstruct(node, XRAY_DEFAULT_GROUP, remarks, add, port, type, id, aid, net, "auto", flow, mode, path, host, "", tls,pbk,sid);
+    vlessConstruct(node, XRAY_DEFAULT_GROUP, remarks, add, port, type, id, aid, net, "auto", flow, mode, path, host, "", tls, pbk, sid, fp);
     return;
 }
 

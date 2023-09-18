@@ -107,7 +107,7 @@ bool applyMatcher(const std::string &rule, std::string &real_rule, const Proxy &
     std::string target, ret_real_rule;
     static const std::string groupid_regex = R"(^!!(?:GROUPID|INSERT)=([\d\-+!,]+)(?:!!(.*))?$)", group_regex = R"(^!!(?:GROUP)=(.+?)(?:!!(.*))?$)";
     static const std::string type_regex = R"(^!!(?:TYPE)=(.+?)(?:!!(.*))?$)", port_regex = R"(^!!(?:PORT)=(.+?)(?:!!(.*))?$)", server_regex = R"(^!!(?:SERVER)=(.+?)(?:!!(.*))?$)";
-    static const string_array types = {"", "SS", "SSR", "VMESS", "TROJAN", "SNELL", "HTTP", "HTTPS", "SOCKS5"};
+    static const string_array types = {"", "SS", "SSR", "VMESS", "TROJAN", "SNELL", "HTTP", "HTTPS", "SOCKS5","VLESS","HYSTERIA"};
     if (startsWith(rule, "!!GROUP=")) {
         regGetMatch(rule, group_regex, 3, 0, &target, &ret_real_rule);
         real_rule = ret_real_rule;
@@ -231,7 +231,9 @@ proxyToClash(std::vector<Proxy> &nodes, YAML::Node &yamlnode, const ProxyGroupCo
             if (!x.ShortId.empty())
                 singleproxy["reality-opts"]["short-id"] = x.ShortId;
         }
-
+        singleproxy["client-fingerprint"] = "chrome";
+        if (!x.Fingerprint.empty())
+            singleproxy["client-fingerprint"] = x.Fingerprint;
         switch (x.Type) {
             case ProxyType::Shadowsocks:
                 //latest clash core removed support for chacha20 encryption
@@ -260,6 +262,12 @@ proxyToClash(std::vector<Proxy> &nodes, YAML::Node &yamlnode, const ProxyGroupCo
                         singleproxy["plugin-opts"]["mux"] = pluginopts.find("mux") != std::string::npos;
                         if (!scv.is_undef())
                             singleproxy["plugin-opts"]["skip-cert-verify"] = scv.get();
+                        break;
+                    case "shadow-tls"_hash:
+                        singleproxy["plugin"] = "shadow-tls";
+                        singleproxy["plugin-opts"]["host"] = getUrlArg(pluginopts, "host");
+                        singleproxy["plugin-opts"]["password"] = getUrlArg(pluginopts, "password");
+                        singleproxy["plugin-opts"]["version"] = getUrlArg(pluginopts, "version");
                         break;
                 }
                 break;
