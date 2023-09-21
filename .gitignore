@@ -1,2 +1,13 @@
 subconverter.exe
 .vscode
+libcron
+quickjspp
+*.a
+CMakeFiles
+subconverter
+Makefile
+CMakeCache.txt
+cmake_install.cmake
+toml11
+yaml-cpp
+base/cache

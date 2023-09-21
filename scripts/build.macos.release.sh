@@ -3,7 +3,7 @@ set -xe
 
 brew reinstall rapidjson libevent zlib pcre2 pkgconfig
 
-#git clone https://github.com/curl/curl --depth=1
+#git clone https://github.com/curl/curl --depth=1 --branch curl-7_88_1
 #cd curl
 #./buildconf > /dev/null
 #./configure --with-ssl=/usr/local/opt/openssl@1.1 --without-mbedtls --disable-ldap --disable-ldaps --disable-rtsp --without-libidn2 > /dev/null
@@ -21,7 +21,8 @@ git clone https://github.com/ftk/quickjspp --depth=1
 cd quickjspp
 cmake -DCMAKE_BUILD_TYPE=Release .
 make quickjs -j8
-install -m644 quickjs/libquickjs.a /usr/local/lib/
+install -d /usr/local/lib/quickjs/
+install -m644 quickjs/libquickjs.a /usr/local/lib/quickjs/
 install -d /usr/local/include/quickjs/
 install -m644 quickjs/quickjs.h quickjs/quickjs-libc.h /usr/local/include/quickjs/
 install -m644 quickjspp.hpp /usr/local/include/

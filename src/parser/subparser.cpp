@@ -179,7 +179,8 @@ void explodeVless(std::string vless, Proxy &node)
 }
 
 void explodeHysteria(std::string hysteria, Proxy &node)
-{
+{   
+    printf("explodeHysteria\n");
     if(regMatch(hysteria, "hysteria://(.*?)[:](.*)"))
     {
         explodeStdHysteria(hysteria, node);
@@ -1028,10 +1029,12 @@ void explodeClash(Node yamlnode, std::vector<Proxy> &nodes)
 {
     std::string proxytype, ps, server, port, cipher, group, password; //common
     std::string type = "none", id, aid = "0", net = "tcp", path, host, edge, tls, sni, alpn; //vmess
-    std::string plugin, pluginopts, pluginopts_mode, pluginopts_host, pluginopts_mux; //ss
+    std::string fp="chrome",pbk,sid; //vless
+    std::string plugin, pluginopts, pluginopts_mode, pluginopts_host, pluginopts_mux, pluginopts_version, pluginopts_password; //ss
     std::string protocol, protoparam, obfs, obfsparam; //ssr
     std::string flow, mode; //trojan
     std::string user; //socks
+    std::string auth,up,down,obfsParam,insecure;//hysteria
     tribool udp, tfo, scv;
     Node singleproxy;
     uint32_t index = nodes.size();
@@ -1094,6 +1097,58 @@ void explodeClash(Node yamlnode, std::vector<Proxy> &nodes)
 
             vmessConstruct(node, group, ps, server, port, "", id, aid, net, cipher, path, host, edge, tls, sni, alpn, udp, tfo, scv);
             break;
+        case "vless"_hash:
+            group = XRAY_DEFAULT_GROUP;
+
+            singleproxy["uuid"] >>= id;
+            singleproxy["alterId"] >>= aid;
+            net = singleproxy["network"].IsDefined() ? safe_as<std::string>(singleproxy["network"]) : "tcp";
+            sni = singleproxy["sni"].IsDefined() ? safe_as<std::string>(singleproxy["sni"]) : safe_as<std::string>(singleproxy["servername"]) ;
+            switch(hash_(net))
+            {
+            case "http"_hash:
+                singleproxy["http-opts"]["path"][0] >>= path;
+                singleproxy["http-opts"]["headers"]["Host"][0] >>= host;
+                edge.clear();
+                break;
+            case "ws"_hash:
+                if(singleproxy["ws-opts"].IsDefined())
+                {
+                    path = singleproxy["ws-opts"]["path"].IsDefined() ? safe_as<std::string>(singleproxy["ws-opts"]["path"]) : "/";
+                    singleproxy["ws-opts"]["headers"]["Host"] >>= host;
+                    singleproxy["ws-opts"]["headers"]["Edge"] >>= edge;
+                }
+                else
+                {
+                    path = singleproxy["ws-path"].IsDefined() ? safe_as<std::string>(singleproxy["ws-path"]) : "/";
+                    singleproxy["ws-headers"]["Host"] >>= host;
+                    singleproxy["ws-headers"]["Edge"] >>= edge;
+                }
+                break;
+            case "h2"_hash:
+                singleproxy["h2-opts"]["path"] >>= path;
+                singleproxy["h2-opts"]["host"][0] >>= host;
+                edge.clear();
+                break;
+            case "grpc"_hash:
+                singleproxy["servername"] >>= host;
+                singleproxy["grpc-opts"]["grpc-service-name"] >>= path;
+                edge.clear();
+                break;
+            }
+
+            tls = safe_as<std::string>(singleproxy["tls"]) == "true" ? "tls" : "";
+            if(singleproxy["reality-opts"].IsDefined())
+            {
+                host = singleproxy["sni"].IsDefined() ? safe_as<std::string>(singleproxy["sni"]) : safe_as<std::string>(singleproxy["servername"]) ;
+                printf("host:%s",host.c_str());
+                singleproxy["reality-opts"]["public-key"]>>=pbk;
+                singleproxy["reality-opts"]["short-id"]>>=sid;
+            }
+            singleproxy["flow"]>>=flow;
+
+            vlessConstruct(node, XRAY_DEFAULT_GROUP, ps, server, port, type, id, aid, net, "auto", flow, mode, path, host, "", tls, pbk, sid, fp);
+            break;        
         case "ss"_hash:
             group = SS_DEFAULT_GROUP;
 
@@ -1120,6 +1175,15 @@ void explodeClash(Node yamlnode, std::vector<Proxy> &nodes)
                         tls = safe_as<bool>(singleproxy["plugin-opts"]["tls"]) ? "tls;" : "";
                         singleproxy["plugin-opts"]["path"] >>= path;
                         pluginopts_mux = safe_as<bool>(singleproxy["plugin-opts"]["mux"]) ? "mux=4;" : "";
+                    }
+                    break;
+                case "shadow-tls"_hash:
+                    plugin = "shadow-tls";
+                    if (singleproxy["plugin-opts"].IsDefined())
+                    {
+                        singleproxy["plugin-opts"]["host"] >>= pluginopts_host;
+                        singleproxy["plugin-opts"]["password"] >>= pluginopts_password;
+                        singleproxy["plugin-opts"]["version"] >>= pluginopts_version;
                     }
                     break;
                 default:
@@ -1150,6 +1214,14 @@ void explodeClash(Node yamlnode, std::vector<Proxy> &nodes)
                     pluginopts += "path=" + path + ";";
                 if(!pluginopts_mux.empty())
                     pluginopts += "mux=" + pluginopts_mux + ";";
+                break;
+            case "shadow-tls"_hash:
+                if (!pluginopts_host.empty())
+                    pluginopts += "host=" + pluginopts_host + ";";
+                if (!pluginopts_password.empty())
+                    pluginopts += "password=" + pluginopts_password + ";";
+                if (!pluginopts_version.empty())
+                    pluginopts += "version=" + pluginopts_version + ";";
                 break;
             }
 
@@ -1231,6 +1303,19 @@ void explodeClash(Node yamlnode, std::vector<Proxy> &nodes)
             singleproxy["version"] >>= aid;
 
             snellConstruct(node, group, ps, server, port, password, obfs, host, to_int(aid, 0), udp, tfo, scv);
+            break;
+        case "hysteria"_hash:
+            group = HYSTERIA_DEFAULT_GROUP;
+            singleproxy["auth_str"] >> auth;
+            singleproxy["up"] >> up;
+            singleproxy["down"] >> down;
+            singleproxy["obfs"] >> obfsParam;
+            singleproxy["protocol"] >> type;
+            singleproxy["sni"] >> host;
+            singleproxy["alpn"][0] >> alpn;
+            singleproxy["protocol"] >> insecure;
+
+            hysteriaConstruct(node, group, ps, server, port, type, auth, host, up, down, alpn, obfsParam, insecure, udp, tfo, scv);
             break;
         default:
             continue;
@@ -1469,17 +1554,17 @@ bool explodeSurge(std::string surge, std::vector<Proxy> &nodes)
     ini.store_isolated_line = true;
     ini.keep_empty_section = false;
     ini.allow_dup_section_titles = true;
-    ini.SetIsolatedItemsSection("Proxy");
-    ini.IncludeSection("Proxy");
-    ini.AddDirectSaveSection("Proxy");
+    ini.set_isolated_items_section("Proxy");
+    ini.include_section("Proxy");
+    ini.add_direct_save_section("Proxy");
     if(surge.find("[Proxy]") != surge.npos)
-        surge = regReplace(surge, "^[\\S\\s]*?\\[", "[", false);
-    ini.Parse(surge);
+        surge = regReplace(surge, R"(^[\S\s]*?\[)", "[", false);
+    ini.parse(surge);
 
-    if(!ini.SectionExist("Proxy"))
+    if(!ini.section_exist("Proxy"))
         return false;
-    ini.EnterSection("Proxy");
-    ini.GetItems(proxies);
+    ini.enter_section("Proxy");
+    ini.get_items(proxies);
 
     const std::string proxystr = "(.*?)\\s*=\\s*(.*)";
 
