@@ -179,7 +179,8 @@ void explodeVless(std::string vless, Proxy &node)
 }
 
 void explodeHysteria(std::string hysteria, Proxy &node)
-{
+{   
+    printf("explodeHysteria\n");
     if(regMatch(hysteria, "hysteria://(.*?)[:](.*)"))
     {
         explodeStdHysteria(hysteria, node);
@@ -1033,6 +1034,7 @@ void explodeClash(Node yamlnode, std::vector<Proxy> &nodes)
     std::string protocol, protoparam, obfs, obfsparam; //ssr
     std::string flow, mode; //trojan
     std::string user; //socks
+    std::string auth,up,down,obfsParam,insecure;//hysteria
     tribool udp, tfo, scv;
     Node singleproxy;
     uint32_t index = nodes.size();
@@ -1301,6 +1303,19 @@ void explodeClash(Node yamlnode, std::vector<Proxy> &nodes)
             singleproxy["version"] >>= aid;
 
             snellConstruct(node, group, ps, server, port, password, obfs, host, to_int(aid, 0), udp, tfo, scv);
+            break;
+        case "hysteria"_hash:
+            group = HYSTERIA_DEFAULT_GROUP;
+            singleproxy["auth_str"] >> auth;
+            singleproxy["up"] >> up;
+            singleproxy["down"] >> down;
+            singleproxy["obfs"] >> obfsParam;
+            singleproxy["protocol"] >> type;
+            singleproxy["sni"] >> host;
+            singleproxy["alpn"][0] >> alpn;
+            singleproxy["protocol"] >> insecure;
+
+            hysteriaConstruct(node, group, ps, server, port, type, auth, host, up, down, alpn, obfsParam, insecure, udp, tfo, scv);
             break;
         default:
             continue;
