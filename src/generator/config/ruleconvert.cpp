@@ -9,7 +9,7 @@
 
 /// rule type lists
 #define basic_types "DOMAIN", "DOMAIN-SUFFIX", "DOMAIN-KEYWORD", "IP-CIDR", "SRC-IP-CIDR", "GEOIP", "MATCH", "FINAL"
-string_array ClashRuleTypes = {basic_types, "IP-CIDR6", "SRC-PORT", "DST-PORT", "PROCESS-NAME"};
+string_array ClashRuleTypes = {basic_types, "IP-CIDR6", "DST-PORT", "SRC-PORT", "PROCESS-NAME", "PROCESS-PATH", "AND", "OR", "NOT", "GEOSITE", "IN-TYPE", "IN-USER", "IN-NAME", "NETWORK", "RULE-SET", "SUB-RULE"};
 string_array Surge2RuleTypes = {basic_types, "IP-CIDR6", "USER-AGENT", "URL-REGEX", "PROCESS-NAME", "IN-PORT", "DEST-PORT", "SRC-IP"};
 string_array SurgeRuleTypes = {basic_types, "IP-CIDR6", "USER-AGENT", "URL-REGEX", "AND", "OR", "NOT", "PROCESS-NAME", "IN-PORT", "DEST-PORT", "SRC-IP"};
 string_array QuanXRuleTypes = {basic_types, "USER-AGENT", "HOST", "HOST-SUFFIX", "HOST-KEYWORD"};
@@ -106,6 +106,8 @@ void rulesetToClash(YAML::Node &base_rule, std::vector<RulesetContent> &ruleset_
     if(!overwrite_original_rules && base_rule[field_name].IsDefined())
         rules = base_rule[field_name];
 
+    const std::string rule_match_regex = "^(.*?,.*?)(,.*)(,.*)$";
+
     for(RulesetContent &x : ruleset_content_array)
     {
         if(global.maxAllowedRules && total_rules > global.maxAllowedRules)
@@ -123,8 +125,8 @@ void rulesetToClash(YAML::Node &base_rule, std::vector<RulesetContent> &ruleset_
             if(startsWith(strLine, "FINAL"))
                 strLine.replace(0, 5, "MATCH");
             strLine += "," + rule_group;
-            if(count_least(strLine, ',', 3))
-                strLine = regReplace(strLine, "^(.*?,.*?)(,.*)(,.*)$", "$1$3$2");
+            if(!startsWith(strLine, "AND") && !startsWith(strLine, "OR") && !startsWith(strLine, "NOT") && count_least(strLine, ',', 3))
+                strLine = regReplace(strLine, rule_match_regex, "$1$3$2");
             allRules.emplace_back(std::move(strLine));
             total_rules++;
             continue;
@@ -151,8 +153,8 @@ void rulesetToClash(YAML::Node &base_rule, std::vector<RulesetContent> &ruleset_
                 strLine = trimWhitespace(strLine);
             }
             strLine += "," + rule_group;
-            if(count_least(strLine, ',', 3))
-                strLine = regReplace(strLine, "^(.*?,.*?)(,.*)(,.*)$", "$1$3$2");
+            if(!startsWith(strLine, "AND") && !startsWith(strLine, "OR") && !startsWith(strLine, "NOT") && count_least(strLine, ',', 3))
+                strLine = regReplace(strLine, rule_match_regex, "$1$3$2");
             allRules.emplace_back(std::move(strLine));
             //rules.push_back(strLine);
         }
@@ -181,6 +183,8 @@ std::string rulesetToClashStr(YAML::Node &base_rule, std::vector<RulesetContent>
     }
     base_rule.remove(field_name);
 
+    const std::string rule_match_regex = "^(.*?,.*?)(,.*)(,.*)$";
+
     for(RulesetContent &x : ruleset_content_array)
     {
         if(global.maxAllowedRules && total_rules > global.maxAllowedRules)
@@ -198,8 +202,8 @@ std::string rulesetToClashStr(YAML::Node &base_rule, std::vector<RulesetContent>
             if(startsWith(strLine, "FINAL"))
                 strLine.replace(0, 5, "MATCH");
             strLine += "," + rule_group;
-            if(count_least(strLine, ',', 3))
-                strLine = regReplace(strLine, "^(.*?,.*?)(,.*)(,.*)$", "$1$3$2");
+            if(!startsWith(strLine, "AND") && !startsWith(strLine, "OR") && !startsWith(strLine, "NOT") && count_least(strLine, ',', 3))
+                strLine = regReplace(strLine, rule_match_regex, "$1$3$2");
             output_content += "  - " + strLine + "\n";
             total_rules++;
             continue;
@@ -226,8 +230,8 @@ std::string rulesetToClashStr(YAML::Node &base_rule, std::vector<RulesetContent>
                 strLine = trimWhitespace(strLine);
             }
             strLine += "," + rule_group;
-            if(count_least(strLine, ',', 3))
-                strLine = regReplace(strLine, "^(.*?,.*?)(,.*)(,.*)$", "$1$3$2");
+            if(!startsWith(strLine, "AND") && !startsWith(strLine, "OR") && !startsWith(strLine, "NOT") && count_least(strLine, ',', 3))
+                strLine = regReplace(strLine, rule_match_regex, "$1$3$2");
             output_content += "  - " + strLine + "\n";
             total_rules++;
         }
